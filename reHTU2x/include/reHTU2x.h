@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <esp_err.h>
 #include <reSensor.h>
+#include "driver/i2c.h"
 
 #define HTU2X_ADDRESS               0x40       // chip i2c address
 #define HTU2X_ERROR                 0xFF       // returns 255, if communication error is occurred
@@ -42,32 +43,10 @@ extern "C" {
 
 class HTU2x : public rSensorHT {
   public:
-    HTU2x(uint8_t eventId);
-
-    // Dynamically creating internal items on the heap
-    bool initIntItems(const char* sensorName, const char* topicName, const bool topicLocal,  
-      // hardware properties
-      const int numI2C, const HTU2X_RESOLUTION resolution, bool compensated_humidity,
-      // humidity filter
-      const sensor_filter_t filterMode1 = SENSOR_FILTER_RAW, const uint16_t filterSize1 = 0, 
-      // temperature filter
-      const sensor_filter_t filterMode2 = SENSOR_FILTER_RAW, const uint16_t filterSize2 = 0,
-      // limits
-      const uint32_t minReadInterval = 2000, const uint16_t errorLimit = 0,
-      // callbacks
-      cb_status_changed_t cb_status = nullptr, cb_publish_data_t cb_publish = nullptr);
-    
-    // Connecting external previously created items, for example statically declared
-    bool initExtItems(const char* sensorName, const char* topicName, const bool topicLocal,
-      // hardware properties
-      const int numI2C, const HTU2X_RESOLUTION resolution, bool compensated_humidity,
-      // humidity filter
-      rSensorItem* item1, 
-      // temperature filter
-      rSensorItem* item2,
-      // limits
-      const uint32_t minReadInterval = 2000, const uint16_t errorLimit = 0,
-      // callbacks
+    HTU2x(uint8_t eventId,
+      const i2c_port_t numI2C, const HTU2X_RESOLUTION resolution, bool compensated_humidity,
+      const char* sensorName, const char* topicName, const bool topicLocal, 
+      const uint32_t minReadInterval = 1000, const uint16_t errorLimit = 0,
       cb_status_changed_t cb_status = nullptr, cb_publish_data_t cb_publish = nullptr);
 
     sensor_status_t sensorReset() override;
@@ -81,7 +60,7 @@ class HTU2x : public rSensorHT {
   protected:
     sensor_status_t readRawData() override;  
   private:
-    int              _I2C_num;
+    i2c_port_t       _I2C_num;
     HTU2X_RESOLUTION _resolution;
     bool             _compensated;
     bool             _heater;
@@ -89,7 +68,6 @@ class HTU2x : public rSensorHT {
     HTU2X_TYPE       _deviceType = HTU2X_NULL;
 
     sensor_status_t readDeviceID(void);
-    bool initHardware(const int numI2C, const HTU2X_RESOLUTION resolution, bool compensated_humidity);
     esp_err_t sendCommand(uint8_t command);
     esp_err_t sendU8(uint8_t command, uint8_t data);
     esp_err_t readU8(uint8_t command, const uint32_t usWaitData, uint8_t* value);

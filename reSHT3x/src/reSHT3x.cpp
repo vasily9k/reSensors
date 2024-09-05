@@ -64,64 +64,26 @@
 #define SHT3xD_DELAY_MEASURE_L	      4500
 #define SHT3xD_DELAY_MEASURE_M	      6500
 #define SHT3xD_DELAY_MEASURE_H	      15500
+#define SHT3xD_DELAY_HEATER						500
 
 static const char* logTAG = "SHT3x";
 
-SHT3xD::SHT3xD(uint8_t eventId):rSensorHT(eventId)
+SHT3xD::SHT3xD(uint8_t eventId,
+  const i2c_port_t numI2C, const uint8_t addrI2C, const SHT3xD_FREQUENCY frequency, const SHT3xD_MODE mode, const SHT3xD_REPEATABILITY repeatability,
+  const char* sensorName, const char* topicName, const bool topicLocal, 
+  const uint32_t minReadInterval, const uint16_t errorLimit,
+  cb_status_changed_t cb_status, cb_publish_data_t cb_publish)
+:rSensorHT(eventId, 
+  sensorName, topicName, topicLocal, 
+  minReadInterval, errorLimit,
+  cb_status, cb_publish)
 {
-  _I2C_num = 0;
-  _I2C_address = 0;
-	_frequency = SHT3xD_SINGLE;
-	_mode = SHT3xD_MODE_NOHOLD;
-	_repeatability = SHT3xD_REPEATABILITY_MEDIUM;
+  _I2C_num = numI2C;
+  _I2C_address = addrI2C;
+	_frequency = frequency;
+	_mode = mode;
+	_repeatability = repeatability;
 	_heater = false;
-}
-
-/**
- * Dynamically creating internal items on the heap
- * */
-bool SHT3xD::initIntItems(const char* sensorName, const char* topicName, const bool topicLocal,
-  const int numI2C, const uint8_t addrI2C, const SHT3xD_FREQUENCY frequency, const SHT3xD_MODE mode, const SHT3xD_REPEATABILITY repeatability, 
-  const sensor_filter_t filterMode1, const uint16_t filterSize1, 
-  const sensor_filter_t filterMode2, const uint16_t filterSize2,
-  const uint32_t minReadInterval, const uint16_t errorLimit,
-  cb_status_changed_t cb_status, cb_publish_data_t cb_publish)
-{
-  _I2C_num = numI2C;
-  _I2C_address = addrI2C;
-	_frequency = frequency;
-	_mode = mode;
-	_repeatability = repeatability;
-  // Initialize properties
-  initProperties(sensorName, topicName, topicLocal, minReadInterval, errorLimit, cb_status, cb_publish);
-  // Initialize internal items
-  if (this->rSensorX2::initSensorItems(filterMode1, filterSize1, filterMode2, filterSize2)) {
-    // Start device
-    return sensorStart();
-  };
-  return false;
-}
-
-/**
- * Connecting external previously created items, for example statically declared
- * */
-bool SHT3xD::initExtItems(const char* sensorName, const char* topicName, const bool topicLocal,
-  const int numI2C, const uint8_t addrI2C, const SHT3xD_FREQUENCY frequency, const SHT3xD_MODE mode, const SHT3xD_REPEATABILITY repeatability,
-  rSensorItem* item1, rSensorItem* item2,
-  const uint32_t minReadInterval, const uint16_t errorLimit,
-  cb_status_changed_t cb_status, cb_publish_data_t cb_publish)
-{
-  _I2C_num = numI2C;
-  _I2C_address = addrI2C;
-	_frequency = frequency;
-	_mode = mode;
-	_repeatability = repeatability;
-  // Initialize properties
-  initProperties(sensorName, topicName, topicLocal, minReadInterval, errorLimit, cb_status, cb_publish);
-  // Assign items
-  this->rSensorX2::setSensorItems(item1, item2);
-  // Start device
-  return sensorStart();
 }
 
 /**
@@ -136,7 +98,7 @@ sensor_status_t SHT3xD::sensorReset()
 		if (status == SENSOR_STATUS_OK) {
 			status = clearStatusRegister();
 			if (status == SENSOR_STATUS_OK) {
-				status = setHeaterEx(false);
+				status = setHeaterEx(false, false);
 			};
 		};
 	};
@@ -236,26 +198,32 @@ sensor_status_t SHT3xD::readStatusRegister(SHT3xD_STATUS* status)
  * It can be switched on and off by command. The status is listed in the status register. 
  * After a reset the heater is disabled (default condition).
  * */
-sensor_status_t SHT3xD::setHeaterEx(bool heaterMode)
+sensor_status_t SHT3xD::setHeaterEx(bool heaterMode, bool checkStatus)
 {
 	// Send heater status
 	SENSOR_ERR_CHECK(sendCommand(heaterMode ? SHT3xD_CMD_HEATER_ENABLE : SHT3xD_CMD_HEATER_DISABLE), RSENSOR_LOG_MSG_HEATER_SET_FAILED);
-	// Check heater status
-	SENSOR_ERR_CHECK(readBuffer(SHT3xD_CMD_READ_STATUS, 0, 3), RSENSOR_LOG_MSG_READ_STATUS_FAILED);
-	// BIT13 - Heater status :: ‘0’ : Heater OFF / ‘1’ : Heater ON
-	_heater = _bufData[0] & BIT13;
-	if (_heater == heaterMode) {
-		rlog_i(logTAG, RSENSOR_LOG_MSG_HEATER_STATE, _name, _heater ? RSENSOR_LOG_MSG_HEATER_ON : RSENSOR_LOG_MSG_HEATER_OFF);
-		return SENSOR_STATUS_OK;
+	if (checkStatus) {
+		sys_delay_ms(SHT3xD_DELAY_HEATER);
+		// Check heater status
+		SENSOR_ERR_CHECK(readBuffer(SHT3xD_CMD_READ_STATUS, 0, 3), RSENSOR_LOG_MSG_READ_STATUS_FAILED);
+		// BIT13 - Heater status :: ‘0’ : Heater OFF / ‘1’ : Heater ON
+		_heater = _bufData[0] & BIT13;
+		if (_heater == heaterMode) {
+			rlog_i(logTAG, RSENSOR_LOG_MSG_HEATER_STATE, _name, _heater ? RSENSOR_LOG_MSG_HEATER_ON : RSENSOR_LOG_MSG_HEATER_OFF);
+			return SENSOR_STATUS_OK;
+		} else {
+			rlog_i(logTAG, RSENSOR_LOG_MSG_HEATER_UNCONFIRMED, _name);
+			return SENSOR_STATUS_BAD_DATA;
+		};
 	} else {
-		rlog_i(logTAG, RSENSOR_LOG_MSG_HEATER_UNCONFIRMED, _name);
-		return SENSOR_STATUS_ERROR;
+		rlog_i(logTAG, RSENSOR_LOG_MSG_HEATER_STATE, _name, heaterMode ? RSENSOR_LOG_MSG_HEATER_ON : RSENSOR_LOG_MSG_HEATER_OFF);
+		return SENSOR_STATUS_OK;
 	};
 }
 
 sensor_status_t SHT3xD::setHeater(bool heaterMode)
 {
-	sensor_status_t ret = setHeaterEx(heaterMode);
+	sensor_status_t ret = setHeaterEx(heaterMode, false);
 	setRawStatus(ret, false);
 	return ret;
 }

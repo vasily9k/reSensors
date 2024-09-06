@@ -1,0 +1,17 @@
+{
+  "name": "reSensors",
+  "version": "1.1.1",
+  "description": "Drivers for various sensors ",
+  "keywords": "Sensor",
+  "authors":
+  [
+    {
+      "name": "Alexander Razzhivin",
+      "email": "kotyara12@yandex.ru",
+      "url": "https://kotyara12.ru"
+    }
+  ],
+  "license": "GNU",
+  "frameworks": ["arduino", "espidf"],
+  "platforms": ["espressif32"]
+}

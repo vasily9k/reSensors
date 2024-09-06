@@ -176,13 +176,8 @@ value_t reADCItem::convertValue(const value_t rawValue)
       return (rawValue * 1250 / CONFIG_IDF_ADC_DMAX) * _coefficient;
     case ADC_ATTEN_DB_6:   
       return (rawValue * 1750 / CONFIG_IDF_ADC_DMAX) * _coefficient;
-    #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
-      case ADC_ATTEN_DB_12:
-        return (rawValue * 2750 / CONFIG_IDF_ADC_DMAX) * _coefficient;
-    #else
-      case ADC_ATTEN_DB_11:
-        return (rawValue * 2450 / CONFIG_IDF_ADC_DMAX) * _coefficient;
-    #endif
+    case ADC_ATTEN_DB_12:
+      return (rawValue * 2750 / CONFIG_IDF_ADC_DMAX) * _coefficient;
     default: 
       return (rawValue * 950 / CONFIG_IDF_ADC_DMAX) * _coefficient;
   };
